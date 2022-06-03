@@ -98,7 +98,7 @@
           <configuration>
               <transformers>
                   <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                      <mainClass>ttsbot/src/main/java/bot/Main.java</mainClass> <!-- You have to replace this with a path to your main class like me.myname.mybotproject.Main -->
+                      <mainClass>com.github.williamli0707.ttsbot.Main</mainClass> <!-- You have to replace this with a path to your main class like me.myname.mybotproject.Main -->
                   </transformer>
               </transformers>
               <createDependencyReducedPom>false</createDependencyReducedPom>

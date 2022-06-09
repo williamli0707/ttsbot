@@ -43,7 +43,6 @@ import java.util.regex.Pattern;
 import static com.mongodb.client.model.Filters.eq;
 
 public class Main extends ListenerAdapter {
-	public static long quota;
 	public static JDA jda;
 
 	private final AudioPlayerManager playerManager;
@@ -140,7 +139,7 @@ public class Main extends ListenerAdapter {
 		GuildChannel guildChannel = event.getGuildChannel();
 		GuildSetting currentGuildSetting = guildSettingHashMap.get(event.getGuild().getIdLong());
 		MemberSetting currentMemberSetting = memberSettingHashMap.get(event.getMember().getIdLong());
-
+		//TODO ignorecase, set autojoin resets channel
 		if(event.getAuthor().isBot()) return;
 		if(message.startsWith(currentGuildSetting.getPrefix())) {
 			//main commands
@@ -206,7 +205,7 @@ public class Main extends ListenerAdapter {
 			}
 			else if(message.equals("voices")){
 				StringBuilder sb = new StringBuilder("");
-				sb.append("`" + validVoices[0] + "`");
+				sb.append("`").append(validVoices[0]).append("`");
 				for(int i = 1;i < validVoices.length;i++){
 					sb.append(", `").append(i).append("`");
 				}
@@ -308,16 +307,21 @@ public class Main extends ListenerAdapter {
 					case "xsaid":
 					case "servervoice":
 					case "channel":
+					case "prefix":
+					case "volume":
+					case "autojoin":
+					case "allchannels":
+					case "requirevoice":
 						GuildSetting gs = new GuildSetting();
 						long guildId = event.getGuild().getIdLong();
 						if (guildSettingHashMap.containsKey(event.getAuthor().getIdLong()))
 							gs = guildSettingHashMap.get(guildId);
-						if (split[0].equals("xsaid")) {
-							boolean set = split[1].equals("true");
+						if (split[0].equalsIgnoreCase("xsaid")) {
+							boolean set = split[1].equalsIgnoreCase("true");
 							gs.setXSaid(set);
 							if (set) event.getChannel().sendMessage("The bot now says who said the message when playing audio. ").queue();
 							else event.getChannel().sendMessage("The bot now does not say who said the message when playing audio. ").queue();
-						} else if (split[0].equals("servervoice")) {
+						} else if (split[0].equalsIgnoreCase("servervoice")) {
 							if (!isValidVoice(split[1])) {
 								event.getChannel().sendMessage(split[1] + " is not a valid voice. " +
 										"Check https://docs.google.com/spreadsheets/d/1mKLBunYTfeUrIlBLml0IzLrA_F-UvkZHClJO7PeW0Fs/edit?usp=sharing " +
@@ -326,43 +330,46 @@ public class Main extends ListenerAdapter {
 							}
 							gs.setServerLang(split[1]);
 							event.getChannel().sendMessage("Your guild's default language is now " + gs.getServerLang()).queue();
-						} else if (split[0].equals("channel")) {
+						} else if (split[0].equalsIgnoreCase("channel")) {
 							gs.setChannel(event.getChannel().getIdLong());
 							event.getChannel().sendMessage("Set the channel to " + event.getChannel().getName()).queue();
+						}
+						else if(split[0].equalsIgnoreCase("prefix")) {
+							gs.setPrefix(split[1]);
+							event.getChannel().sendMessage("Set the prefix to " + split[1]).queue();
+						}
+						else if(split[0].equalsIgnoreCase("volume")) {
+							try{
+								if(!musicManagers.get(event.getGuild().getIdLong()).setVolume(Integer.parseInt(split[1]))){
+									event.getChannel().sendMessage("Please enter a valid number between 0 and 200").queue();
+									return;
+								}
+								else {
+									gs.setVolume(Integer.parseInt(split[1]));
+									event.getChannel().sendMessage("Volume set to " + gs.getVolume()).queue();
+								}
+							} catch (NumberFormatException e) {
+								event.getChannel().sendMessage("Please enter a valid number between 0 and 200").queue();
+								return;
+							}
+						}
+						else if(split[0].equalsIgnoreCase("allchannels")){
+							gs.setAllChannels(split[1].equalsIgnoreCase("true"));
+							event.getChannel().sendMessage("All channels set to " + gs.isAllChannels()).queue();
+						}
+						else if(split[0].equalsIgnoreCase("requirevoice")){
+							gs.setRequireVoice(split[1].equalsIgnoreCase("true"));
+							if(split[1].equalsIgnoreCase("true")) event.getChannel().sendMessage("Users now must be connected to the voice channel to send TTS messages. ").queue();
+							else event.getChannel().sendMessage("Users now do not need to be connected to the voice channel to send TTS messages. ").queue();
+						}
+						else if(split[0].equalsIgnoreCase("autojoin")){
+							gs.setAutoJoin(split[1].equalsIgnoreCase("true"));
+							if(split[1].equalsIgnoreCase("true")) event.getChannel().sendMessage("TTS Bot will now automatically connect once a message is sent in the TTS Channel. ").queue();
+							else event.getChannel().sendMessage("TTS Bot will no longer automatically connect to a voice channel unless a command is explicitly given. ").queue();
 						}
 						guildSettingHashMap.put(guildId, gs);
 						Document guild = gs.toDocument(guildId);
 						guilds.replaceOne(eq("_id", guildId), guild, options);
-						break;
-					case "prefix":
-						String prefix = split[1];
-						GuildSetting setting = new GuildSetting();
-						if(guildSettingHashMap.containsKey(event.getGuild().getIdLong())) setting = guildSettingHashMap.get(event.getGuild().getIdLong());
-						setting.setPrefix(prefix);
-						guildSettingHashMap.put(event.getGuild().getIdLong(), setting);
-						Document guildToInsert = setting.toDocument(event.getGuild().getIdLong());
-						guilds.replaceOne(eq("_id", event.getGuild().getIdLong()), guildToInsert, options);
-						event.getChannel().sendMessage("Set the prefix to " + prefix).queue();
-						break;
-					case "volume":
-						GuildSetting newVolume = new GuildSetting();
-						if(guildSettingHashMap.containsKey(event.getGuild().getIdLong())) newVolume = guildSettingHashMap.get(event.getGuild().getIdLong());
-						try{
-							if(!musicManagers.get(event.getGuild().getIdLong()).setVolume(Integer.parseInt(split[1]))){
-								event.getChannel().sendMessage("Please enter a valid number between 0 and 200").queue();
-								return;
-							}
-							else {
-								newVolume.setVolume(Integer.parseInt(split[1]));
-								event.getChannel().sendMessage("Volume set to " + newVolume.getVolume()).queue();
-							}
-						} catch (NumberFormatException e) {
-							event.getChannel().sendMessage("Please enter a valid number between 0 and 200").queue();
-							return;
-						}
-						guildSettingHashMap.put(event.getGuild().getIdLong(), newVolume);
-						Document newVolumeDoc = newVolume.toDocument(event.getGuild().getIdLong());
-						guilds.replaceOne(eq("_id", event.getGuild().getIdLong()), newVolumeDoc, options);
 						break;
 					default:
 						event.getChannel().sendMessageEmbeds(settingsList.build()).queue();
@@ -384,7 +391,7 @@ public class Main extends ListenerAdapter {
 				am.openAudioConnection(vcToJoin);
 				channel.sendMessageEmbeds(joinedChannel.build()).queue();
 				join = true;
-			};
+			}
 			if(vc == null && !join) return;
 			if(!guildSettingHashMap.containsKey(event.getGuild().getIdLong()) ||
 					(guildSettingHashMap.containsKey(event.getGuild().getIdLong())

@@ -20,13 +20,20 @@ public class GuildMusicManager {
      * Creates a player and a track scheduler.
      * @param manager Audio player manager to use for creating the player.
      */
-    public GuildMusicManager(AudioPlayerManager manager) {
+    public GuildMusicManager(AudioPlayerManager manager, int volume) {
         player = manager.createPlayer();
-        player.setVolume(100);
+        player.setVolume(volume);
         scheduler = new TrackScheduler(player);
         player.addListener(scheduler);
     }
 
+    public boolean setVolume(int volume) {
+        if(volume >= 0 && volume <= 200) {
+            player.setVolume(volume);
+            return true;
+        }
+        return false;
+    }
     /**
      * @return Wrapper around AudioPlayer to use it as an AudioSendHandler.
      */

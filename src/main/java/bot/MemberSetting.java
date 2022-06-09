@@ -7,7 +7,6 @@ public class MemberSetting {
 	String memberLang;
 	SsmlVoiceGender memberGender;
 	public MemberSetting(){
-		memberLang = "en-US";
 		memberGender = SsmlVoiceGender.NEUTRAL;
 	}
 	public String getMemberLang() {

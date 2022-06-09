@@ -3,14 +3,18 @@ package bot;
 import org.bson.Document;
 
 public class GuildSetting {
-    String serverLang;
+    String serverLang, prefix;
     boolean xSaid, allChannels, requireVoice, autoJoin;
+
+    int volume;
     long channel;
 	public GuildSetting(){
         serverLang = "en-US";
         requireVoice = true;
         autoJoin = false;
         xSaid = false;
+        prefix = ",";
+        volume = 100;
     }
     public String getServerLang() {
         return serverLang;
@@ -26,6 +30,13 @@ public class GuildSetting {
     }
     public boolean isAutoJoin() { return autoJoin; }
     public boolean isRequireVoice() { return requireVoice; }
+    public String getPrefix() {
+        return prefix;
+    }
+
+    public int getVolume() {
+        return volume;
+    }
 
     public void setServerLang(String lang) {
         serverLang = lang;
@@ -35,13 +46,23 @@ public class GuildSetting {
     }
     public void setAllChannels(boolean all) {
         allChannels = all;
-        if(all) channel = 0;
+        if(all) {
+            channel = 0;
+            autoJoin = false;
+        }
     }
     public void setChannel(long channel) {
         this.channel = channel;
     }
-    public void setAutoJoin(boolean auto) {this.autoJoin = auto;}
+    public void setAutoJoin(boolean auto) {
+        this.autoJoin = auto;
+        if(auto) allChannels = false;
+    }
     public void setRequireVoice(boolean v) {requireVoice = v;}
+    public void setPrefix(String prefix) {this.prefix = prefix; }
+    public void setVolume(int v) {
+        this.volume = v;
+    }
 
     public Document toDocument(long id) {
         Document document = new Document();
@@ -52,6 +73,8 @@ public class GuildSetting {
         document.append("channel", channel);
         document.append("autoJoin", autoJoin);
         document.append("requireVoice", requireVoice);
+        document.append("prefix", prefix);
+        document.append("volume", volume);
         return document;
     }
     public static GuildSetting fromDocument(Document document){
@@ -62,6 +85,8 @@ public class GuildSetting {
         setting.setChannel(document.getLong("channel"));
         setting.setAutoJoin(document.getBoolean("autoJoin"));
         setting.setRequireVoice(document.getBoolean("requireVoice"));
+        setting.setPrefix(document.getString("prefix"));
+        setting.setVolume(document.getInteger("volume"));
         return setting;
     }
 }

@@ -52,6 +52,7 @@ public class GuildSetting {
         }
     }
     public void setChannel(long channel) {
+        allChannels = false;
         this.channel = channel;
     }
     public void setAutoJoin(boolean auto) {

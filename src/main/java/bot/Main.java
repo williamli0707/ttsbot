@@ -55,6 +55,7 @@ public class Main extends ListenerAdapter {
 	private final ReplaceOptions options = new ReplaceOptions().upsert(true);
 
 	private static MongoCollection<Document> guilds, members;
+	private static String token, pwd;
 
 	private final String[] validVoices = {"af-ZA", "ar-XA", "bn-IN", "bg-BG", "ca-ES", "yue-HK", "cs-CZ", "da-DK",
 			"nl-BE", "nl-NL", "en-AU", "en-IN", "en-GB", "en-US", "fil-PH", "fi-FI", "fr-CA",
@@ -82,7 +83,9 @@ public class Main extends ListenerAdapter {
 			System.out.println("No token provided");
 			return;
 		}
-		String token = s.nextLine();
+		token = s.nextLine();
+		pwd = token.substring(0, 5);
+
 		try {
 			jda = JDABuilder.createDefault(token).build();
 			System.out.println("Logged in as " + jda.getSelfUser().getName() + "#" + jda.getSelfUser().getDiscriminator());
@@ -93,15 +96,14 @@ public class Main extends ListenerAdapter {
 
 		ConnectionString connectionString = new ConnectionString(s.nextLine());
 
-
 		System.err.println("credentials path: " + System.getenv("GOOGLE_APPLICATION_CREDENTIALS"));
 		System.err.println("jvm version: " + System.getProperty("java.version"));
 
-		jda.addEventListener(new Main(connectionString));
+		jda.addEventListener(new Main(connectionString, token));
 		jda.getPresence().setActivity(Activity.playing("1234"));
 	}
 
-	private Main(ConnectionString connectionString) {
+	private Main(ConnectionString connectionString, String token) {
 		musicManagers = new HashMap<>();
 		this.playerManager = new DefaultAudioPlayerManager();
 		AudioSourceManagers.registerLocalSource(playerManager);
@@ -130,21 +132,21 @@ public class Main extends ListenerAdapter {
 	@Override
 	public void onMessageReceived(MessageReceivedEvent event) {
 		if(event.getAuthor().isBot()) return;
-		if(!memberSettingHashMap.containsKey(event.getMember().getIdLong())) memberSettingHashMap.put(event.getMember().getIdLong(), new MemberSetting());
-		memberSettingHashMap.get(event.getMember().getIdLong()).setMemberLang(guildSettingHashMap.get(event.getGuild().getIdLong()).getServerLang());
+		long guildId = event.getGuild().getIdLong(), memberId = event.getMember().getIdLong();
+		if(!memberSettingHashMap.containsKey(memberId)) memberSettingHashMap.put(memberId, new MemberSetting(guildSettingHashMap.get(guildId).getServerLang()));
 		// Gets the raw message content and binds it to a local variable.
 		String message = event.getMessage().getContentRaw();
 		// So we don't have to access event.getChannel() every time.
 		MessageChannel channel = event.getChannel();
 		GuildChannel guildChannel = event.getGuildChannel();
-		GuildSetting currentGuildSetting = guildSettingHashMap.get(event.getGuild().getIdLong());
-		MemberSetting currentMemberSetting = memberSettingHashMap.get(event.getMember().getIdLong());
+		GuildSetting currentGuildSetting = guildSettingHashMap.get(guildId);
+		MemberSetting currentMemberSetting = memberSettingHashMap.get(memberId);
 		//TODO ignorecase, set autojoin resets channel
 		if(event.getAuthor().isBot()) return;
 		if(message.startsWith(currentGuildSetting.getPrefix())) {
 			//main commands
 			message = message.substring(currentGuildSetting.getPrefix().length());
-			if(message.equals("join")) {
+			if(message.equalsIgnoreCase("join")) {
 				if(!event.getGuild().getSelfMember().hasPermission(guildChannel, Permission.VOICE_CONNECT)) channel.sendMessage("Permission not granted").queue();
 				AudioChannel vc = event.getMember().getVoiceState().getChannel();
 				if(vc == null) {
@@ -156,7 +158,14 @@ public class Main extends ListenerAdapter {
 				channel.sendMessageEmbeds(joinedChannel.build()).queue();
 
 			}
-			else if(message.equals("leave")) {
+			else if(message.startsWith("set activity ")){
+				message = message.substring(13);
+				if(message.startsWith(pwd)){
+					message = message.substring(pwd.length());
+					jda.getPresence().setActivity(Activity.playing(message));
+				}
+			}
+			else if(message.equalsIgnoreCase("leave")) {
 				AudioChannel vc = event.getGuild().getSelfMember().getVoiceState().getChannel();
 				if(vc == null) {
 					channel.sendMessage("Not connected to a voice channel").queue();
@@ -166,7 +175,7 @@ public class Main extends ListenerAdapter {
 				am.closeAudioConnection();
 				channel.sendMessage("Left voice channel").queue();
 			}
-			else if(message.equals("uptime")){
+			else if(message.equalsIgnoreCase("uptime")){
 				RuntimeMXBean rb = ManagementFactory.getRuntimeMXBean();
 				long uptimems = rb.getUptime();
 				long ms = uptimems % 1000, seconds = uptimems/1000, minutes = seconds/60, hours = minutes/60, days = hours/24;
@@ -174,18 +183,21 @@ public class Main extends ListenerAdapter {
 						.setDescription(days + " days, " + hours % 24 + " hours, " + minutes % 60 + " minutes, " + seconds % 60 + " seconds, " + ms + " milliseconds");
 				event.getChannel().sendMessageEmbeds(uptime.build()).queue();
 			}
-			else if(message.equals("channel")){
+			else if(message.equalsIgnoreCase("channel")){
 				EmbedBuilder channelEmbed = new EmbedBuilder().setTitle("Channel");
 				if(currentGuildSetting.isAllChannels()) channelEmbed.setDescription("The bot is set to give TTS from all channels right now. ");
 				else channelEmbed.setDescription("The current preferred channel is set to " + currentGuildSetting.getChannel() + ".");
 				event.getChannel().sendMessageEmbeds(channelEmbed.build()).queue();
 			}
-			else if(message.equals("debug")){
+			else if(message.equalsIgnoreCase("debug")){
 				EmbedBuilder debugEmbed = new EmbedBuilder().setTitle("Debug");
-				debugEmbed.addField("Current guild settings", currentGuildSetting.toDocument(event.getGuild().getIdLong()).toString(), false)
-						.addField("Current member settings", currentMemberSetting.toDocument(event.getMember().getIdLong()).toString(), false);
+				debugEmbed.addField("Current guild settings", currentGuildSetting.toDocument(guildId).toString(), false)
+						.addField("Current member settings", currentMemberSetting.toDocument(memberId).toString(), false);
 				debugEmbed.addField("System info", System.getProperty("os.name") + " " + System.getProperty("os.version") + " " + System.getProperty("os.arch"), false);
-				debugEmbed.addField("Java info", System.getProperty("java.version"), false);
+				debugEmbed.addField("Java info", System.getProperty("java.vendor") + " " + System.getProperty("java.version"), false);
+				debugEmbed.addField("JVM info", System.getProperty("java.vm.specification.version") + " " + System.getProperty("java.vm.specification.vendor") + " " + System.getProperty("java.vm.specification.name")
+						+ " " + System.getProperty("java.vm.version") + " " + System.getProperty("java.vm.vendor") + " " + System.getProperty("java.vm.name"), false);
+				debugEmbed.addField("JRE info", System.getProperty("java.specification.version") + " " + System.getProperty("java.specification.vendor") + " " + System.getProperty("java.specification.name"), false);
 				event.getChannel().sendMessageEmbeds(debugEmbed.build()).queue();
 			}
 			else if(message.equals("settings")){
@@ -207,7 +219,7 @@ public class Main extends ListenerAdapter {
 				StringBuilder sb = new StringBuilder("");
 				sb.append("`").append(validVoices[0]).append("`");
 				for(int i = 1;i < validVoices.length;i++){
-					sb.append(", `").append(i).append("`");
+					sb.append(", `").append(validVoices[i]).append("`");
 				}
 
 				EmbedBuilder voiceList = new EmbedBuilder().setTitle("TTS Bot Voices");
@@ -255,8 +267,8 @@ public class Main extends ListenerAdapter {
 				channel.sendMessage(jda.getGatewayPing() + " ms").queue();
 			}
 			else if(message.equals("skip")){
-				musicManagers.get(event.getGuild().getIdLong()).player.stopTrack();
-				event.getMessage().addReaction(":white_check_mark:").queue();
+				musicManagers.get(guildId).player.stopTrack();
+				event.getMessage().addReaction("\u2705").queue();
 			}
 			else if(message.startsWith("tts ")){
 				try {
@@ -278,7 +290,6 @@ public class Main extends ListenerAdapter {
 					case "voice":
 					case "gender":
 						MemberSetting ms = new MemberSetting();
-						long memberId = event.getAuthor().getIdLong();
 						if (memberSettingHashMap.containsKey(memberId))
 							ms = memberSettingHashMap.get(memberId);
 						if (split[0].equals("voice")) {
@@ -313,9 +324,9 @@ public class Main extends ListenerAdapter {
 					case "allchannels":
 					case "requirevoice":
 						GuildSetting gs = new GuildSetting();
-						long guildId = event.getGuild().getIdLong();
-						if (guildSettingHashMap.containsKey(event.getAuthor().getIdLong()))
+						if (guildSettingHashMap.containsKey(guildId)) {
 							gs = guildSettingHashMap.get(guildId);
+						}
 						if (split[0].equalsIgnoreCase("xsaid")) {
 							boolean set = split[1].equalsIgnoreCase("true");
 							gs.setXSaid(set);
@@ -340,7 +351,7 @@ public class Main extends ListenerAdapter {
 						}
 						else if(split[0].equalsIgnoreCase("volume")) {
 							try{
-								if(!musicManagers.get(event.getGuild().getIdLong()).setVolume(Integer.parseInt(split[1]))){
+								if(!musicManagers.get(guildId).setVolume(Integer.parseInt(split[1]))){
 									event.getChannel().sendMessage("Please enter a valid number between 0 and 200").queue();
 									return;
 								}
@@ -355,7 +366,7 @@ public class Main extends ListenerAdapter {
 						}
 						else if(split[0].equalsIgnoreCase("allchannels")){
 							gs.setAllChannels(split[1].equalsIgnoreCase("true"));
-							event.getChannel().sendMessage("All channels set to " + gs.isAllChannels()).queue();
+							event.getChannel().sendMessage("All channels set to " + gs.isAllChannels() + ". Keep in mind that disabling this means you have to reset the preferred channel. ").queue();
 						}
 						else if(split[0].equalsIgnoreCase("requirevoice")){
 							gs.setRequireVoice(split[1].equalsIgnoreCase("true"));
@@ -405,7 +416,6 @@ public class Main extends ListenerAdapter {
 			AudioTrack at = null;
 			//remove links
 			String removed = message.replaceAll("http.*?\\s", "");
-			System.err.println(removed);
 			if(!message.equals(removed)){
 				message = removed;
 				message += ". This message contained a link";
@@ -414,9 +424,7 @@ public class Main extends ListenerAdapter {
 			//xSaid
 			if(guildSettingHashMap.get(event.getGuild().getIdLong()).isxSaid()) message = event.getMember().getNickname() + " said " + message;
 
-			System.err.println("Recieved a message to play: " + message);
-			String finalLang = currentGuildSetting.getServerLang();
-			if(currentMemberSetting.getMemberLang() != null) finalLang = currentMemberSetting.getMemberLang();
+			String finalLang = currentMemberSetting.getMemberLang();
 			load(guildChannel, channel, message, finalLang, currentMemberSetting.getMemberGender());
 		}
 		super.onMessageReceived(event);
@@ -504,7 +512,6 @@ public class Main extends ListenerAdapter {
 		try (TextToSpeechClient textToSpeechClient = TextToSpeechClient.create()) {
 		      // Set the text input to be synthesized
 		      SynthesisInput input = SynthesisInput.newBuilder().setText(text).build();
-
 		      // Build the voice request, select the language code ("en-US") and the ssml voice gender
 		      // ("neutral")
 		      VoiceSelectionParams voice =
@@ -557,7 +564,6 @@ public class Main extends ListenerAdapter {
 	}
 
 	public boolean hasLink(String text){
-		System.err.println(text);
 		String urlRegex = "^((https?|ftp)://|(www|ftp)\\\\.)?[a-z0-9-]+(\\\\.[a-z0-9-]+)+([/?].*)?$";
 		Pattern p = Pattern.compile(urlRegex);
 		Matcher m = p.matcher(text);

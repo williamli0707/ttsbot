@@ -49,6 +49,7 @@ public class Main extends ListenerAdapter {
 	private final HashMap<Long, GuildMusicManager> musicManagers;
 	private final HashMap<Long, GuildSetting> guildSettingHashMap;
 	private final HashMap<Long, MemberSetting> memberSettingHashMap;
+	private final HashMap<Long, String> pumpkinMap;
 	private final double memorySize = ((com.sun.management.OperatingSystemMXBean) ManagementFactory
 			.getOperatingSystemMXBean()).getTotalPhysicalMemorySize();
 	private final double diskSize = new File("/").getTotalSpace();
@@ -70,6 +71,7 @@ public class Main extends ListenerAdapter {
 				+ "`set servervoice <language code>`: Sets the preferred language in the guild to this language - use `voices` for a list of language codes\n"
 				+ "`set allchannels <true/false>`: Toggles whether or not the bot says messages from all channels or from the specified channel, note that this overrides autojoin\n"
 				+ "`set requirevoice <true/false>`: Toggles whether or not the bot requires the user to be in the voice channel to activate the bot\n"
+				+ "`set volume <int>`: Sets volume of the bot to the specified value (between 0 and 200)\n"
 				+ "`set autojoin <true/false>`: Toggles whether or not the bot should automatically join this channel when a message is sent in the specified channel", false)
 			.addField("Member Settings", "`set gender <male/female/neutral>`: Sets the gender of the voice used, this might not be available for all languages because of Google TTS limitations\n"
 				+ "`set voice <language code>: Sets the member's preferred language, overrides guild default language", false),
@@ -109,6 +111,7 @@ public class Main extends ListenerAdapter {
 		AudioSourceManagers.registerLocalSource(playerManager);
 		guildSettingHashMap = new HashMap<>();
 		memberSettingHashMap = new HashMap<>();
+		pumpkinMap = new HashMap<>();
 		MongoClient mongoClient = MongoClients.create(connectionString);
 		guilds = mongoClient.getDatabase("main").getCollection("guilds");
 		members = mongoClient.getDatabase("main").getCollection("members");
@@ -132,7 +135,7 @@ public class Main extends ListenerAdapter {
 	@Override
 	public void onMessageReceived(MessageReceivedEvent event) {
 		if(event.getAuthor().isBot()) return;
-		long guildId = event.getGuild().getIdLong(), memberId = event.getMember().getIdLong();
+		long guildId = event.getGuild().getIdLong(), memberId = event.getAuthor().getIdLong();
 		if(!memberSettingHashMap.containsKey(memberId)) memberSettingHashMap.put(memberId, new MemberSetting(guildSettingHashMap.get(guildId).getServerLang()));
 		// Gets the raw message content and binds it to a local variable.
 		String message = event.getMessage().getContentRaw();
@@ -141,7 +144,6 @@ public class Main extends ListenerAdapter {
 		GuildChannel guildChannel = event.getGuildChannel();
 		GuildSetting currentGuildSetting = guildSettingHashMap.get(guildId);
 		MemberSetting currentMemberSetting = memberSettingHashMap.get(memberId);
-		//TODO ignorecase, set autojoin resets channel
 		if(event.getAuthor().isBot()) return;
 		if(message.startsWith(currentGuildSetting.getPrefix())) {
 			//main commands
@@ -216,7 +218,7 @@ public class Main extends ListenerAdapter {
 				event.getChannel().sendMessageEmbeds(settingsEmbed.build()).queue();
 			}
 			else if(message.equals("voices")){
-				StringBuilder sb = new StringBuilder("");
+				StringBuilder sb = new StringBuilder();
 				sb.append("`").append(validVoices[0]).append("`");
 				for(int i = 1;i < validVoices.length;i++){
 					sb.append(", `").append(validVoices[i]).append("`");
@@ -243,9 +245,11 @@ public class Main extends ListenerAdapter {
 						 + "`channel`: Shows the current set up channel, or none if `all channels` is true\n"
 						 + "`ping`: Gets the current ping to Discord", false);
 				eb.addField("Settings", "`settings`: Shows the current settings\n"
-						 + "`set`: Changes a setting\n"
+						 + "`set <setting> <value>`: Changes a setting\n"
+						 + "`set`: View all available settings\n"
 						 + "`set channel`: Changes the channel setup to the current channel\n"
-						 + "`voices`: Shows a list of available voices"
+						 + "`voices`: Shows a list of available voices\n"
+						 + "`pumpkin <text>`: Yes. \n"
 						 + "`set voice <language>`: Changes the current voice setting", false);
 				eb.addField("Uncategorized", "`help`: List of available commands\n"
 						 + "`debug`: Debug commands for bot", false);
@@ -281,6 +285,12 @@ public class Main extends ListenerAdapter {
 			}
 			else if(message.equals("set")){
 				event.getChannel().sendMessageEmbeds(settingsList.build()).queue();
+			}
+			else if(message.startsWith("pumpkin")){
+				if(pumpkinMap.containsKey(guildId)) pumpkinMap.remove(guildId);
+				else{
+					pumpkinMap.put(guildId, message.substring(8));
+				}
 			}
 			else if(message.startsWith("set ")){
 				message = message.substring(4);
@@ -425,6 +435,7 @@ public class Main extends ListenerAdapter {
 			if(guildSettingHashMap.get(event.getGuild().getIdLong()).isxSaid()) message = event.getMember().getNickname() + " said " + message;
 
 			String finalLang = currentMemberSetting.getMemberLang();
+			if(pumpkinMap.containsKey(guildId)) message = pumpkinMap.get(guildId);
 			load(guildChannel, channel, message, finalLang, currentMemberSetting.getMemberGender());
 		}
 		super.onMessageReceived(event);
@@ -442,7 +453,7 @@ public class Main extends ListenerAdapter {
 				+ "Then, you can just type normal messages and I will say them, like magic! \n\n"
 				+ "You can view all the commands with `help`.\n"
 				+ "The default prefix is ',' but you can change it at any time.");
-		event.getGuild().getDefaultChannel().sendMessageEmbeds(eb.build()).queue();
+		event.getGuild().getSystemChannel().sendMessageEmbeds(eb.build()).queue();
 		GuildSetting gSetting = new GuildSetting();
 		guildSettingHashMap.put(event.getGuild().getIdLong(), gSetting);
 		guilds.replaceOne(eq("_id", event.getGuild().getIdLong()), gSetting.toDocument(event.getGuild().getIdLong()), options);
@@ -543,6 +554,13 @@ public class Main extends ListenerAdapter {
 		      }
 //		      return playerManager.decodeTrack(new MessageInput(bais)).decodedTrack;
 		}
+	}
+
+	public static void clip(){
+
+	}
+	public static void getSTT(){
+
 	}
 
 	public boolean isValidVoice(String input) {

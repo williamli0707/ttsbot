@@ -38,6 +38,7 @@ public class GuildSetting {
         return volume;
     }
 
+
     public void setServerLang(String lang) {
         serverLang = lang;
     }

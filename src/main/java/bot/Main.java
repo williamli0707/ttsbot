@@ -137,9 +137,8 @@ public class Main extends ListenerAdapter {
 		if(event.getAuthor().isBot()) return;
 		long guildId = event.getGuild().getIdLong(), memberId = event.getAuthor().getIdLong();
 		if(!memberSettingHashMap.containsKey(memberId)) memberSettingHashMap.put(memberId, new MemberSetting(guildSettingHashMap.get(guildId).getServerLang()));
-		// Gets the raw message content and binds it to a local variable.
 		String message = event.getMessage().getContentRaw();
-		// So we don't have to access event.getChannel() every time.
+		if(message == null) return;
 		MessageChannel channel = event.getChannel();
 		GuildChannel guildChannel = event.getGuildChannel();
 		GuildSetting currentGuildSetting = guildSettingHashMap.get(guildId);
@@ -287,10 +286,16 @@ public class Main extends ListenerAdapter {
 				event.getChannel().sendMessageEmbeds(settingsList.build()).queue();
 			}
 			else if(message.startsWith("pumpkin")){
-				if(pumpkinMap.containsKey(guildId)) pumpkinMap.remove(guildId);
+//				EmbedBuilder eb;
+				if(pumpkinMap.containsKey(guildId)) {
+					pumpkinMap.remove(guildId);
+//					eb = new EmbedBuilder().setTitle("Pumpkin Mode").setDescription("Pumpkin mode off. ");
+				}
 				else{
 					pumpkinMap.put(guildId, message.substring(8));
+//					eb = new EmbedBuilder().setTitle("**Pumpkin Mode**").setDescription(":)");
 				}
+//				event.getChannel().sendMessageEmbeds(eb.build()).queue();
 			}
 			else if(message.startsWith("set ")){
 				message = message.substring(4);
@@ -303,13 +308,14 @@ public class Main extends ListenerAdapter {
 						if (memberSettingHashMap.containsKey(memberId))
 							ms = memberSettingHashMap.get(memberId);
 						if (split[0].equals("voice")) {
-							if (!isValidVoice(split[1])) {
+							String voice = isValidVoice(split[1]);
+							if (isValidVoice(split[1]).equalsIgnoreCase("")) {
 								event.getChannel().sendMessage(split[1] + " is not a valid voice. " +
 										"Check https://docs.google.com/spreadsheets/d/1mKLBunYTfeUrIlBLml0IzLrA_F-UvkZHClJO7PeW0Fs/edit?usp=sharing " +
 										", or alternatively use the command \"voices\" for a list of valid links, and make sure to use the \"Language code\" value when changing the voice setting. ").queue();
 								return;
 							}
-							ms.setMemberLang(split[1]);
+							ms.setMemberLang(voice);
 							event.getChannel().sendMessage("Your language was set to " + ms.getMemberLang() + ". ").queue();
 						}
 						if (split[0].equals("gender")) {
@@ -343,13 +349,14 @@ public class Main extends ListenerAdapter {
 							if (set) event.getChannel().sendMessage("The bot now says who said the message when playing audio. ").queue();
 							else event.getChannel().sendMessage("The bot now does not say who said the message when playing audio. ").queue();
 						} else if (split[0].equalsIgnoreCase("servervoice")) {
-							if (!isValidVoice(split[1])) {
+							String voice = isValidVoice(split[1]);
+							if (voice.equalsIgnoreCase("")) {
 								event.getChannel().sendMessage(split[1] + " is not a valid voice. " +
 										"Check https://docs.google.com/spreadsheets/d/1mKLBunYTfeUrIlBLml0IzLrA_F-UvkZHClJO7PeW0Fs/edit?usp=sharing " +
 										", or alternatively use the command \"voices\" for a list of valid links, and make sure to use the \"Language code\" value when changing the voice setting. ").queue();
 								return;
 							}
-							gs.setServerLang(split[1]);
+							gs.setServerLang(voice);
 							event.getChannel().sendMessage("Your guild's default language is now " + gs.getServerLang()).queue();
 						} else if (split[0].equalsIgnoreCase("channel")) {
 							gs.setChannel(event.getChannel().getIdLong());
@@ -563,9 +570,9 @@ public class Main extends ListenerAdapter {
 
 	}
 
-	public boolean isValidVoice(String input) {
-		for(String lang: validVoices) if(input.equals(lang)) return true;
-		return false;
+	public String isValidVoice(String input) {
+		for(String lang: validVoices) if(input.equalsIgnoreCase(lang)) return lang;
+		return "";
 	}
 
 	public void loadSettings(){

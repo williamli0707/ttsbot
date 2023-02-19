@@ -6,7 +6,7 @@
   
   <artifactId>ttsbot</artifactId>
   
-  <version>0.1.2-SNAPSHOT</version>
+  <version>0.5.1-SNAPSHOT</version>
   
   <name>ttsbot</name>
   
@@ -105,7 +105,7 @@
   	<dependency>
   		<groupId>ch.qos.logback</groupId>
   		<artifactId>logback-classic</artifactId>
-  		<version>1.2.8</version>
+  		<version>1.4.5</version>
 	</dependency>
 	
 	<dependency>

@@ -1,6 +1,9 @@
 package bot;
 
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.LoggerContext;
 import com.google.cloud.texttospeech.v1.*;
 import com.google.protobuf.ByteString;
 import com.mongodb.ConnectionString;
@@ -26,6 +29,7 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.managers.AudioManager;
 import org.bson.Document;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -115,6 +119,14 @@ public class Main extends ListenerAdapter {
 		MongoClient mongoClient = MongoClients.create(connectionString);
 		guilds = mongoClient.getDatabase("main").getCollection("guilds");
 		members = mongoClient.getDatabase("main").getCollection("members");
+		LoggerFactory.getLogger("org.mongodb");
+		LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+		for(Logger logger : loggerContext.getLoggerList()) {
+//			System.err.println(logger.getName());
+			if(logger.getName().startsWith("com.mongodb") || logger.getName().startsWith("org.mongodb") || logger.getName().startsWith("net.dv8tion")) {
+				logger.setLevel(Level.WARN);
+			}
+		}
 		loadSettings();
 	}
 
@@ -537,8 +549,6 @@ public class Main extends ListenerAdapter {
 		              .setLanguageCode(lang)
 		              .setSsmlGender(gender)
 		              .build();
-
-
 
 		      // Select the type of audio file you want returned
 		      AudioConfig audioConfig =
